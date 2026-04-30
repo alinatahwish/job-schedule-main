@@ -1,0 +1,20 @@
+{
+  "name": "weighted-job-scheduler",
+  "version": "1.0.0",
+  "description": "Full-stack weighted job scheduling visualizer using Express + Python DP.",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "keywords": [
+    "weighted-job-scheduling",
+    "dynamic-programming",
+    "express",
+    "vanilla-js"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

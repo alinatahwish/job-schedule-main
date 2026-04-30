@@ -1,0 +1,327 @@
+const jobs = [];
+
+const startInput = document.getElementById("start");
+const endInput = document.getElementById("end");
+const profitInput = document.getElementById("profit");
+const algorithmSelect = document.getElementById("algorithm");
+
+const addJobBtn = document.getElementById("addJobBtn");
+const loadSampleBtn = document.getElementById("loadSampleBtn");
+const runBtn = document.getElementById("runBtn");
+const clearBtn = document.getElementById("clearBtn");
+const playStepsBtn = document.getElementById("playStepsBtn");
+const animationSpeedSelect = document.getElementById("animationSpeed");
+
+const jobsTableBody = document.getElementById("jobsTableBody");
+const selectedJobsList = document.getElementById("selectedJobsList");
+const maxProfitEl = document.getElementById("maxProfit");
+const resultAlgorithmEl = document.getElementById("resultAlgorithm");
+const timeComplexityEl = document.getElementById("timeComplexity");
+const spaceComplexityEl = document.getElementById("spaceComplexity");
+const timelineEl = document.getElementById("timeline");
+const messageEl = document.getElementById("message");
+const dpTableBody = document.getElementById("dpTableBody");
+const stepInfoEl = document.getElementById("stepInfo");
+const resultModalEl = document.getElementById("resultModal");
+const resultModalTextEl = document.getElementById("resultModalText");
+const closeResultModalBtn = document.getElementById("closeResultModalBtn");
+
+let latestRun = {
+  allJobs: [],
+  selectedJobs: [],
+  dpTable: [],
+  algorithm: "dp",
+};
+
+function showMessage(text, isError = false) {
+  messageEl.textContent = text;
+  messageEl.style.color = isError ? "#cc2f2f" : "#617383";
+}
+
+function resetResults() {
+  maxProfitEl.textContent = "-";
+  resultAlgorithmEl.textContent = "-";
+  selectedJobsList.innerHTML = "";
+  timelineEl.innerHTML = "";
+  dpTableBody.innerHTML = "";
+  timeComplexityEl.textContent = "-";
+  spaceComplexityEl.textContent = "-";
+  stepInfoEl.textContent = "Run algorithm to see step-by-step execution.";
+  latestRun = { allJobs: [], selectedJobs: [], dpTable: [], algorithm: "dp" };
+}
+
+function renderJobsTable() {
+  jobsTableBody.innerHTML = "";
+  jobs.forEach((job, idx) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${idx + 1}</td>
+      <td>${job.start}</td>
+      <td>${job.end}</td>
+      <td>${job.profit}</td>
+    `;
+    jobsTableBody.appendChild(row);
+  });
+}
+
+function addJob() {
+  const start = Number(startInput.value);
+  const end = Number(endInput.value);
+  const profit = Number(profitInput.value);
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(profit)) {
+    showMessage("Please enter valid numeric values.", true);
+    return;
+  }
+
+  if (start >= end) {
+    showMessage("Start time must be smaller than end time.", true);
+    return;
+  }
+
+  jobs.push({ start, end, profit });
+  renderJobsTable();
+  resetResults();
+  showMessage("Job added.");
+
+  startInput.value = "";
+  endInput.value = "";
+  profitInput.value = "";
+}
+
+function loadSampleData() {
+  jobs.length = 0;
+  jobs.push(
+    { start: 1, end: 3, profit: 50 },
+    { start: 2, end: 5, profit: 20 },
+    { start: 4, end: 6, profit: 70 },
+    { start: 6, end: 7, profit: 60 },
+    { start: 5, end: 8, profit: 30 },
+    { start: 7, end: 9, profit: 40 }
+  );
+  renderJobsTable();
+  resetResults();
+  showMessage("Sample data loaded.");
+}
+
+function renderSelectedJobs(selectedJobs) {
+  selectedJobsList.innerHTML = "";
+  selectedJobs.forEach((job) => {
+    const li = document.createElement("li");
+    li.textContent = `Start: ${job.start}, End: ${job.end}, Profit: ${job.profit}`;
+    selectedJobsList.appendChild(li);
+  });
+}
+
+function renderTimeline(allJobs, selectedJobs) {
+  timelineEl.innerHTML = "";
+  if (!allJobs.length) return;
+
+  const minTime = Math.min(...allJobs.map((job) => job.start));
+  const maxTime = Math.max(...allJobs.map((job) => job.end));
+  const span = maxTime - minTime || 1;
+
+  const selectedSet = new Set(
+    selectedJobs.map((job) => `${job.start}|${job.end}|${job.profit}|${job.originalIndex ?? ""}`)
+  );
+
+  allJobs.forEach((job, index) => {
+    const row = document.createElement("div");
+    row.className = "timeline-row";
+
+    const bar = document.createElement("div");
+    const leftPct = ((job.start - minTime) / span) * 100;
+    const widthPct = ((job.end - job.start) / span) * 100;
+    const isSelected = selectedSet.has(
+      `${job.start}|${job.end}|${job.profit}|${job.originalIndex ?? ""}`
+    );
+
+    bar.className = `timeline-bar ${isSelected ? "selected" : "unselected"} pending`;
+    bar.dataset.index = String(index);
+    bar.style.left = `${leftPct}%`;
+    bar.style.width = `${Math.max(widthPct, 6)}%`;
+    bar.textContent = `J${index + 1} (${job.start}-${job.end})`;
+
+    row.appendChild(bar);
+    timelineEl.appendChild(row);
+  });
+
+  const axis = document.createElement("div");
+  axis.className = "timeline-axis";
+  axis.innerHTML = `<span>${minTime}</span><span>${maxTime}</span>`;
+  timelineEl.appendChild(axis);
+}
+
+function renderDpTable(dpTable) {
+  dpTableBody.innerHTML = "";
+
+  if (!dpTable.length) {
+    const row = document.createElement("tr");
+    row.innerHTML = `<td colspan="4">No DP table (Greedy mode).</td>`;
+    dpTableBody.appendChild(row);
+    return;
+  }
+
+  dpTable.forEach((step) => {
+    const row = document.createElement("tr");
+    row.dataset.dpIndex = String(step.index);
+    row.innerHTML = `
+      <td>${step.index}</td>
+      <td>(${step.job.start}, ${step.job.end}, ${step.job.profit})</td>
+      <td>${step.lastNonConflictingIndex}</td>
+      <td>${step.dpValue}</td>
+    `;
+    dpTableBody.appendChild(row);
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function clearTimelineClasses() {
+  const bars = timelineEl.querySelectorAll(".timeline-bar");
+  bars.forEach((bar) => {
+    bar.classList.remove("active", "completed", "pending");
+    bar.classList.add("pending");
+  });
+
+  const rows = dpTableBody.querySelectorAll("tr");
+  rows.forEach((row) => row.classList.remove("active-step"));
+}
+
+async function animateTableFill(tableBody, delay) {
+  const rows = Array.from(tableBody.querySelectorAll("tr"));
+  rows.forEach((row) => row.classList.remove("row-filled"));
+  for (const row of rows) {
+    row.classList.add("row-filled");
+    await sleep(Math.max(120, Math.floor(delay * 0.5)));
+  }
+}
+
+function openResultPopup() {
+  const selectedCount = latestRun.selectedJobs.length;
+  resultModalTextEl.textContent = `Algorithm ${resultAlgorithmEl.textContent} completed with max profit ${maxProfitEl.textContent}. Selected ${selectedCount} job${selectedCount === 1 ? "" : "s"}.`;
+  resultModalEl.classList.remove("hidden");
+}
+
+function closeResultPopup() {
+  resultModalEl.classList.add("hidden");
+}
+
+async function playTimelineSteps() {
+  if (!latestRun.allJobs.length) {
+    showMessage("Run the algorithm first to animate steps.", true);
+    return;
+  }
+
+  const delay = Number(animationSpeedSelect.value) || 600;
+  const bars = Array.from(timelineEl.querySelectorAll(".timeline-bar"));
+  const selectedSet = new Set(
+    latestRun.selectedJobs.map(
+      (job) => `${job.start}|${job.end}|${job.profit}|${job.originalIndex ?? ""}`
+    )
+  );
+
+  playStepsBtn.disabled = true;
+  clearTimelineClasses();
+  await animateTableFill(jobsTableBody, delay);
+
+  for (let i = 0; i < bars.length; i += 1) {
+    const bar = bars[i];
+    const job = latestRun.allJobs[i];
+    const key = `${job.start}|${job.end}|${job.profit}|${job.originalIndex ?? ""}`;
+    const picked = selectedSet.has(key);
+
+    bar.classList.remove("pending");
+    bar.classList.add("active");
+    stepInfoEl.textContent = `Step ${i + 1}: Check J${i + 1} (${job.start}-${job.end}, profit ${job.profit}) -> ${picked ? "Selected" : "Skipped"}`;
+
+    if (latestRun.algorithm === "dp" && latestRun.dpTable[i]) {
+      const dpRow = dpTableBody.querySelector(`tr[data-dp-index="${latestRun.dpTable[i].index}"]`);
+      if (dpRow) {
+        dpRow.classList.add("active-step");
+        dpRow.classList.add("row-filled");
+      }
+    }
+
+    await sleep(delay);
+    bar.classList.remove("active");
+    bar.classList.add("completed");
+  }
+
+  stepInfoEl.textContent = `Completed. Max profit = ${maxProfitEl.textContent}.`;
+  playStepsBtn.disabled = false;
+  openResultPopup();
+}
+
+async function runAlgorithm() {
+  if (!jobs.length) {
+    showMessage("Please add at least one job.", true);
+    return;
+  }
+
+  showMessage("Running...");
+
+  try {
+    const response = await fetch("http://localhost:3000/schedule", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        jobs,
+        algorithm: algorithmSelect.value,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || data.details || "Unknown server error.");
+    }
+
+    const selectedJobs = Array.isArray(data.selectedJobs) ? data.selectedJobs : [];
+
+    maxProfitEl.textContent = String(data.maxProfit);
+    resultAlgorithmEl.textContent = data.algorithm?.toUpperCase() || algorithmSelect.value.toUpperCase();
+    timeComplexityEl.textContent = data.complexity?.time || "O(n log n)";
+    spaceComplexityEl.textContent = data.complexity?.space || "O(n)";
+
+    renderSelectedJobs(selectedJobs);
+    renderTimeline(jobs, selectedJobs);
+    renderDpTable(Array.isArray(data.dpTable) ? data.dpTable : []);
+    latestRun = {
+      allJobs: [...jobs],
+      selectedJobs,
+      dpTable: Array.isArray(data.dpTable) ? data.dpTable : [],
+      algorithm: data.algorithm || algorithmSelect.value,
+    };
+    await playTimelineSteps();
+
+    showMessage("Algorithm executed successfully.");
+  } catch (error) {
+    showMessage(`Failed: ${error.message}`, true);
+  }
+}
+
+function clearAll() {
+  jobs.length = 0;
+  renderJobsTable();
+  resetResults();
+  showMessage("All jobs cleared.");
+}
+
+addJobBtn.addEventListener("click", addJob);
+runBtn.addEventListener("click", runAlgorithm);
+clearBtn.addEventListener("click", clearAll);
+loadSampleBtn.addEventListener("click", loadSampleData);
+playStepsBtn.addEventListener("click", playTimelineSteps);
+closeResultModalBtn.addEventListener("click", closeResultPopup);
+resultModalEl.addEventListener("click", (event) => {
+  if (event.target === resultModalEl) {
+    closeResultPopup();
+  }
+});
